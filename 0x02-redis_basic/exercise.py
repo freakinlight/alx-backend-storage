@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Cache class for interacting with Redis.
+Cache class for interacting with Redis and retrieving values.
 """
 import redis
 import uuid
-from typing import Union
+from typing import Union, Callable, Optional
 
 
 class Cache:
@@ -22,13 +22,38 @@ class Cache:
         self._redis.set(key, data)  # Store the data in Redis
         return key  # Return the key
 
+    def get(self, key: str, fn: Optional[Callable] = None) -> Union[str, bytes, int, float, None]:
+        """
+        Retrieve data from Redis by key and apply the callable fn if provided.
+        If the key does not exist, return None.
+        """
+        data = self._redis.get(key)  # Get data from Redis
+        if data is None:
+            return None  # If the key does not exist, return None
+        if fn:
+            return fn(data)  # Apply the conversion function if provided
+        return data  # Return raw data if no conversion function is provided
+
+    def get_str(self, key: str) -> Optional[str]:
+        """Automatically convert the retrieved data to a UTF-8 string."""
+        return self.get(key, fn=lambda d: d.decode('utf-8'))
+
+    def get_int(self, key: str) -> Optional[int]:
+        """Automatically convert the retrieved data to an integer."""
+        return self.get(key, fn=int)
+
 
 if __name__ == "__main__":
     cache = Cache()
 
-    data = b"hello"  # Example data
-    key = cache.store(data)  # Store data in Redis and get the key
-    print(key)
+    # Test cases as per the example
+    TEST_CASES = {
+        b"foo": None,
+        123: int,
+        "bar": lambda d: d.decode("utf-8")
+    }
 
-    local_redis = redis.Redis()  # Create a Redis client instance to fetch data
-    print(local_redis.get(key))  # Retrieve the data using the key
+    for value, fn in TEST_CASES.items():
+        key = cache.store(value)  # Store each test case value
+        assert cache.get(key, fn=fn) == value  # Assert the retrieved value matches
+
